@@ -63,7 +63,7 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: 22
           script: |
-            cd /var/www/html/your-laravel-project
+            cd /home/ubuntu/example-laravel-repo
             git pull origin main
             composer install --no-interaction --prefer-dist --ignore-platform-reqs
             php artisan migrate --force
