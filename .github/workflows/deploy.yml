@@ -1,4 +1,4 @@
-name: Deploy Laravel Project on Push
+name: Deploy Laravel Project via SSH
 
 on:
   push:
@@ -6,16 +6,16 @@ on:
       - main
 
 jobs:
-  web-deploy:
-    name: Deploy Laravel App via SSH
+  deploy:
+    name: SSH Deploy Laravel
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout latest code
-      - name: Get the latest code
+      # 1. Checkout latest code
+      - name: Checkout code
         uses: actions/checkout@v3
 
-      # Setup PHP for Laravel
+      # 2. Setup PHP for Laravel (compatible with Laravel 5.x)
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -23,32 +23,49 @@ jobs:
           extensions: mbstring, bcmath, intl, curl, gd, xml, zip
           coverage: none
 
-      # Install Composer dependencies (ignore PHP version issues)
+      # 3. Setup Node (optional - for asset build)
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      # 4. Allow specific composer plugin
+      - name: Configure Composer plugin
+        run: composer config --no-plugins allow-plugins.kylekatarnls/update-helper true
+
+      # 5. Install dependencies
       - name: Install Composer dependencies
         run: |
           rm -rf vendor composer.lock
           composer clear-cache
           composer install --ignore-platform-reqs --no-interaction --prefer-dist
 
-      # Prepare Laravel
-      - name: Setup Laravel App
+      # 6. Laravel app setup
+      - name: Setup Laravel Application
         run: |
-          php -r "file_exists('.env') || copy('.env.example', '.env');"
+          cp .env.example .env
           php artisan key:generate
           php artisan storage:link
           chmod -R 777 storage bootstrap/cache
 
-      # Deploy using SSH
+      # 7. Optional: build frontend assets
+      # - name: Build frontend assets
+      #   run: |
+      #     npm install
+      #     npm run prod
+
+      # 8. SSH Deploy using appleboy/ssh-action
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
+          port: 22
           script: |
-            cd /path/to/your/laravel/project
+            cd /var/www/html/your-laravel-project
             git pull origin main
-            composer install --ignore-platform-reqs --no-interaction --prefer-dist
+            composer install --no-interaction --prefer-dist --ignore-platform-reqs
             php artisan migrate --force
             php artisan config:cache
             php artisan route:cache
