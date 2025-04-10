@@ -1,42 +1,62 @@
-name: Laravel Deploy
+name: Laravel Deployment
 
 on:
   push:
     branches:
-      - main
+      - main # Run workflow on push to the 'main' branch
+  pull_request:
+    branches:
+      - main # Run workflow on pull requests to the 'main' branch
 
 jobs:
   deploy:
-    name: Deploy Laravel App
     runs-on: ubuntu-latest
 
     steps:
-    # 1. Checkout source code
+    # Step 1: Checkout the code from the repository
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # 2. Setup PHP and Composer
-    - name: Setup PHP
+    # Step 2: Set up PHP environment
+    - name: Set up PHP
       uses: shivammathur/setup-php@v2
       with:
-        php-version: '8.3'
-        extensions: mbstring, bcmath, mysql, zip, curl, fileinfo
+        php-version: 8.3 # Define PHP version
+        extensions: mbstring, intl, bcmath, curl # Install required PHP extensions
         coverage: none
 
-    # 3. Install Composer Dependencies (CI validation)
-    - name: Composer Install (CI Check)
-      run: |
-        composer install --ignore-platform-reqs --no-interaction --prefer-dist -vvv
+    # Step 3: Cache Composer dependencies
+    - name: Cache Composer dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.composer/cache
+        key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+        restore-keys: ${{ runner.os }}-composer-
 
-    # 4. Laravel CI Setup (optional - to validate build)
-    - name: Laravel CI Setup
+    # Step 4: Install Composer dependencies
+    - name: Install Composer dependencies
+      run: composer install --no-dev --prefer-dist --optimize-autoloader
+
+    # Step 5: Set up .env file
+    - name: Set up environment file
       run: |
         cp .env.example .env
         php artisan key:generate
-        php artisan config:cache
 
-    # 5. SSH Deploy and Run Server-side Commands
-    - name: Deploy to Server via SSH
+    # Step 6: Run Laravel Artisan commands
+    - name: Run Laravel Artisan commands
+      run: |
+        php artisan config:cache
+        php artisan route:cache
+        php artisan view:cache
+        php artisan migrate --force
+
+    # Step 7: Optional - Run PHPUnit tests (if applicable)
+    - name: Run PHPUnit Tests
+      run: vendor/bin/phpunit --no-coverage
+
+    # Step 8: Deploy to the server via SSH
+    - name: Deploy to Production Server
       uses: appleboy/ssh-action@v0.1.10
       with:
         host: ${{ secrets.SSH_HOST }}
@@ -44,23 +64,22 @@ jobs:
         key: ${{ secrets.SSH_KEY }}
         port: 22
         script: |
-          echo " Starting server-side deployment..."
+          echo " Connecting to the server..."
           cd /home/ubuntu/example-laravel-repo
 
-          echo " Pulling latest code from GitHub..."
+          echo " Pulling latest code..."
           git pull origin main
 
-          echo " Installing PHP dependencies..."
-          composer install --no-interaction --prefer-dist --optimize-autoloader --ignore-platform-reqs
+          echo " Installing dependencies..."
+          composer install --no-dev --prefer-dist --optimize-autoloader
 
-          echo "Running Laravel setup commands..."
+          echo " Running Laravel setup..."
           php artisan migrate --force
-          php artisan config:clear
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
 
-          echo " Fixing permissions..."
+          echo " Setting permissions..."
           chmod -R 777 storage bootstrap/cache
 
-          echo " Deployment completed successfully!"
+          echo "Deployment complete!"
