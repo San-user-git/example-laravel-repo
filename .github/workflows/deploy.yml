@@ -11,37 +11,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout latest code
+      # Checkout the latest code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Setup PHP (use 8.3 for Laravel 10+)
+      # Setup PHP (change version if needed)
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
-          extensions: mbstring, bcmath, intl, curl, gd, xml, zip, pdo, pdo_mysql
+          extensions: mbstring, bcmath, intl, curl, gd, xml, zip
           coverage: none
 
-      # Setup Node.js (optional for frontend assets)
+      # Setup Node.js (optional - if building frontend assets)
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: '16'
 
-      # Allow specific composer plugin
+      # Allow specific Composer plugin
       - name: Configure Composer plugin
         run: composer config --no-plugins allow-plugins.kylekatarnls/update-helper true
 
-      # Install Composer dependencies (verbose with error handling)
+      # Install Composer dependencies with debug and fallback
       - name: Install Composer dependencies
         run: |
-          echo "Clearing old vendor and composer.lock (if any)..."
+          echo "Cleaning previous vendor and lock file..."
           rm -rf vendor composer.lock || true
           composer clear-cache || true
-          
-          echo "Installing dependencies..."
-          composer install --ignore-platform-reqs --no-interaction --prefer-dist -vvv
+
+          echo "Installing Composer dependencies..."
+          composer install --ignore-platform-reqs --no-interaction --prefer-dist -vvv || {
+            echo " Composer install failed"
+            exit 1
+          }
 
       # Laravel app setup
       - name: Setup Laravel Application
@@ -51,13 +54,7 @@ jobs:
           php artisan storage:link
           chmod -R 777 storage bootstrap/cache
 
-      # OPTIONAL: If you use npm build (vite, etc.)
-      # - name: Build frontend assets
-      #   run: |
-      #     npm install
-      #     npm run build
-
-      # Deploy to server using SSH
+      # SSH Deploy to remote server
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v0.1.10
         with:
@@ -66,11 +63,20 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           port: 22
           script: |
+            echo "Deploying to server..."
             cd /home/ubuntu/example-laravel-repo
+
+            echo "Pulling latest changes..."
             git pull origin main
+
+            echo "Installing dependencies on server..."
             composer install --no-interaction --prefer-dist --ignore-platform-reqs
-            php artisan migrate --force
+
+            echo "Running Laravel setup commands..."
+            php artisan migrate
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
             chmod -R 777 storage bootstrap/cache
+
+            echo "Deployment completed successfully!"
