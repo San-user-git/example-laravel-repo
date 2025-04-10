@@ -1,29 +1,38 @@
-name: Auto Deploy Laravel to EC2
+name: Run Laravel Tests
 
-on:
-  push:
-    branches: [main]
+on: [push, pull_request]
 
 jobs:
-  deploy:
+  tests:
+    name: Run PHPUnit Tests
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Deploy to EC2 via SSH
-        uses: appleboy/ssh-action@v0.1.10
+      - name: Setup PHP with required extensions
+        uses: shivammathur/setup-php@v2
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: ${{ secrets.EC2_PORT }}
-          script: |
-            cd /home/ubuntu/example-laravel-repo
-            git pull origin main
-            composer install
-            cp .env.example .env
-            php artisan key:generate
-            php artisan migrate
-            php artisan config:cache
+          php-version: '8.2'
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, bcmath, soap, intl, gd, exif, iconv
+          coverage: none
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: vendor
+          key: ${{ runner.os }}-php-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-php-
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Set up Laravel Environment
+        run: |
+          cp .env.ci .env
+          php artisan key:generate
+          php artisan config:clear
+
+      - name: Run Laravel Tests
+        run: php artisan test --env=ci
