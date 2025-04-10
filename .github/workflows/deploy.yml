@@ -13,17 +13,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # Step 1: Checkout the code from the repository
+    # Step 1: Checkout the code
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # Step 2: Set up PHP 7.4 for Laravel 5.5 compatibility
-    - name: Set up PHP
+    # Step 2: Set up PHP 7.4 and downgrade Composer to v1
+    - name: Set up PHP 7.4 and install Composer v1
       uses: shivammathur/setup-php@v2
       with:
         php-version: 7.4
         extensions: mbstring, intl, bcmath, curl
-        coverage: none
+        tools: composer:v1 # Downgrade Composer to v1
 
     # Step 3: Cache Composer dependencies
     - name: Cache Composer dependencies
@@ -37,26 +37,26 @@ jobs:
     - name: Install Composer dependencies
       run: composer install --no-dev --prefer-dist --optimize-autoloader
 
-    # Step 5: Set up .env file
+    # Step 5: Setup environment file
     - name: Set up environment file
       run: |
         cp .env.example .env
         php artisan key:generate
 
-    # Step 6: Run Laravel Artisan commands
-    - name: Run Laravel Artisan commands
+    # Step 6: Run Artisan commands
+    - name: Laravel Artisan setup
       run: |
         php artisan config:cache
         php artisan route:cache
         php artisan view:cache
         php artisan migrate --force
 
-    # Step 7: Run PHPUnit tests (optional)
+    # Step 7: Optional Tests
     - name: Run PHPUnit Tests
-      run: vendor/bin/phpunit --no-coverage || echo "PHPUnit skipped or failed (non-blocking)"
+      run: vendor/bin/phpunit --no-coverage || echo "Skipping tests or test failure ignored"
 
-    # Step 8: Deploy to the server via SSH
-    - name: Deploy to Production Server
+    # Step 8: Deploy via SSH
+    - name: Deploy to Server via SSH
       uses: appleboy/ssh-action@v0.1.10
       with:
         host: ${{ secrets.SSH_HOST }}
@@ -70,7 +70,7 @@ jobs:
           echo " Pulling latest code..."
           git pull origin main
 
-          echo " Installing dependencies..."
+          echo "Installing dependencies on server..."
           composer install --no-dev --prefer-dist --optimize-autoloader
 
           echo " Running Laravel setup..."
@@ -79,7 +79,7 @@ jobs:
           php artisan route:cache
           php artisan view:cache
 
-          echo " Setting permissions..."
+          echo " Fixing permissions..."
           chmod -R 777 storage bootstrap/cache
 
-          echo " Deployment complete!"
+          echo " Deployment done!"
