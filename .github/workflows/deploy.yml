@@ -11,36 +11,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      #  Checkout latest code
+      # Checkout latest code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      #  Setup PHP for Laravel (compatible with Laravel 5.x)
+      # Setup PHP (Laravel 10+ compatible)
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '7.4'
-          extensions: mbstring, bcmath, intl, curl, gd, xml, zip
+          php-version: '8.3'
+          extensions: mbstring, bcmath, intl, curl, gd, xml, zip, pdo, pdo_mysql
           coverage: none
 
-      #  Setup Node (optional - for asset build)
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '16'
+  
 
-      #  Allow specific composer plugin
+      # Allow specific Composer plugin
       - name: Configure Composer plugin
         run: composer config --no-plugins allow-plugins.kylekatarnls/update-helper true
 
-      #  Install dependencies
+      # Install Composer dependencies
       - name: Install Composer dependencies
         run: |
           rm -rf vendor composer.lock
           composer clear-cache
-          composer install --ignore-platform-reqs --no-interaction --prefer-dist
+          composer install --no-interaction --prefer-dist --ignore-platform-reqs
 
-      # . Laravel app setup
+      # Laravel environment setup
       - name: Setup Laravel Application
         run: |
           cp .env.example .env
@@ -48,9 +44,7 @@ jobs:
           php artisan storage:link
           chmod -R 777 storage bootstrap/cache
 
-      
-
-      # . SSH Deploy using appleboy/ssh-action
+      # Deploy via SSH
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v0.1.10
         with:
@@ -62,7 +56,7 @@ jobs:
             cd /home/ubuntu/example-laravel-repo
             git pull origin main
             composer install --no-interaction --prefer-dist --ignore-platform-reqs
-            php artisan migrate 
+            php artisan migrate --force
             php artisan config:cache
             php artisan route:cache
             php artisan view:cache
