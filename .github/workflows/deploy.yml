@@ -15,11 +15,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Setup PHP (change version if needed)
+      # Setup PHP (downgrade PHP version to 8.1 for compatibility)
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.3'
+          php-version: '8.1'
           extensions: mbstring, bcmath, intl, curl, gd, xml, zip
           coverage: none
 
@@ -34,7 +34,7 @@ jobs:
         run: composer config --no-plugins allow-plugins.kylekatarnls/update-helper true
 
       # Install Composer dependencies with debug and fallback
-      - name: Install Composer dependencies
+      - name: Install Composer Dependencies
         run: |
           echo "Cleaning previous vendor and lock file..."
           rm -rf vendor composer.lock || true
@@ -42,7 +42,7 @@ jobs:
 
           echo "Installing Composer dependencies..."
           composer install --ignore-platform-reqs --no-interaction --prefer-dist -vvv || {
-            echo " Composer install failed"
+            echo "Composer install failed"
             exit 1
           }
 
