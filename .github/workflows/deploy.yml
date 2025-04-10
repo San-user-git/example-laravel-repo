@@ -15,7 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Setup PHP (Laravel 10+ compatible)
+      # Setup PHP (use 8.3 for Laravel 10+)
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -23,20 +23,27 @@ jobs:
           extensions: mbstring, bcmath, intl, curl, gd, xml, zip, pdo, pdo_mysql
           coverage: none
 
-  
+      # Setup Node.js (optional for frontend assets)
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
 
-      # Allow specific Composer plugin
+      # Allow specific composer plugin
       - name: Configure Composer plugin
         run: composer config --no-plugins allow-plugins.kylekatarnls/update-helper true
 
-      # Install Composer dependencies
+      # Install Composer dependencies (verbose with error handling)
       - name: Install Composer dependencies
         run: |
-          rm -rf vendor composer.lock
-          composer clear-cache
-          composer install --no-interaction --prefer-dist --ignore-platform-reqs
+          echo "Clearing old vendor and composer.lock (if any)..."
+          rm -rf vendor composer.lock || true
+          composer clear-cache || true
+          
+          echo "Installing dependencies..."
+          composer install --ignore-platform-reqs --no-interaction --prefer-dist -vvv
 
-      # Laravel environment setup
+      # Laravel app setup
       - name: Setup Laravel Application
         run: |
           cp .env.example .env
@@ -44,7 +51,13 @@ jobs:
           php artisan storage:link
           chmod -R 777 storage bootstrap/cache
 
-      # Deploy via SSH
+      # OPTIONAL: If you use npm build (vite, etc.)
+      # - name: Build frontend assets
+      #   run: |
+      #     npm install
+      #     npm run build
+
+      # Deploy to server using SSH
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v0.1.10
         with:
