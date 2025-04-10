@@ -1,31 +1,43 @@
-kname: Run Laravel Tests
+name: Deploy Laravel Project on Push
 
-on: [push]
+on:
+  push:
+    branches:
+      - main
 
 jobs:
-  tests:
-    name: Run tests
+  web-deploy:
+    name: Deploy Laravel App via SSH
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: 📥 Get the latest code
         uses: actions/checkout@v3
 
-      - name: Setup PHP
+      - name: 🐘 Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '7.2'
-          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, bcmath, soap, intl, gd, exif, iconv
+          php-version: '7.4'
+          extensions: mbstring, bcmath, intl, curl, gd, xml, zip
           coverage: none
 
-      - name: Install Composer dependencies
-        run: composer install -n --prefer-dist
+      - name: 📦 Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --ignore-platform-reqs
 
-      - name: Prepare Laravel Application
-        run: |
-          cp .env.ci .env
-          php artisan key:generate
-
-      - name: Run tests
-        run: php artisan test
-
+      - name: 🚀 Deploy via SSH
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+            cd /var/www/html/your-laravel-app
+            git pull origin main
+            composer install --no-interaction --prefer-dist --optimize-autoloader
+            php artisan migrate --force
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
+            php artisan storage:link
+            chmod -R 775 storage bootstrap/cache
