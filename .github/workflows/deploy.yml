@@ -1,4 +1,4 @@
-name: Deploy Laravel Project via SSH
+name: Laravel Deploy
 
 on:
   push:
@@ -7,76 +7,60 @@ on:
 
 jobs:
   deploy:
-    name: SSH Deploy Laravel
+    name: Deploy Laravel App
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout the latest code
-      - name: Checkout code
-        uses: actions/checkout@v3
+    # 1. Checkout source code
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      # Setup PHP (downgrade PHP version to 8.1 for compatibility)
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.1'
-          extensions: mbstring, bcmath, intl, curl, gd, xml, zip
-          coverage: none
+    # 2. Setup PHP and Composer
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: '8.3'
+        extensions: mbstring, bcmath, mysql, zip, curl, fileinfo
+        coverage: none
 
-      # Setup Node.js (optional - if building frontend assets)
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '16'
+    # 3. Install Composer Dependencies (CI validation)
+    - name: Composer Install (CI Check)
+      run: |
+        composer install --ignore-platform-reqs --no-interaction --prefer-dist -vvv
 
-      # Allow specific Composer plugin
-      - name: Configure Composer plugin
-        run: composer config --no-plugins allow-plugins.kylekatarnls/update-helper true
+    # 4. Laravel CI Setup (optional - to validate build)
+    - name: Laravel CI Setup
+      run: |
+        cp .env.example .env
+        php artisan key:generate
+        php artisan config:cache
 
-      # Install Composer dependencies with debug and fallback
-      - name: Install Composer Dependencies
-        run: |
-          echo "Cleaning previous vendor and lock file..."
-          rm -rf vendor composer.lock || true
-          composer clear-cache || true
+    # 5. SSH Deploy and Run Server-side Commands
+    - name: Deploy to Server via SSH
+      uses: appleboy/ssh-action@v0.1.10
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_KEY }}
+        port: 22
+        script: |
+          echo " Starting server-side deployment..."
+          cd /home/ubuntu/example-laravel-repo
 
-          echo "Installing Composer dependencies..."
-          composer install --ignore-platform-reqs --no-interaction --prefer-dist -vvv || {
-            echo "Composer install failed"
-            exit 1
-          }
+          echo " Pulling latest code from GitHub..."
+          git pull origin main
 
-      # Laravel app setup
-      - name: Setup Laravel Application
-        run: |
-          cp .env.example .env
-          php artisan key:generate
-          php artisan storage:link
+          echo " Installing PHP dependencies..."
+          composer install --no-interaction --prefer-dist --optimize-autoloader --ignore-platform-reqs
+
+          echo "Running Laravel setup commands..."
+          php artisan migrate --force
+          php artisan config:clear
+          php artisan config:cache
+          php artisan route:cache
+          php artisan view:cache
+
+          echo " Fixing permissions..."
           chmod -R 777 storage bootstrap/cache
 
-      # SSH Deploy to remote server
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v0.1.10
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          port: 22
-          script: |
-            echo "Deploying to server..."
-            cd /home/ubuntu/example-laravel-repo
-
-            echo "Pulling latest changes..."
-            git pull origin main
-
-            echo "Installing dependencies on server..."
-            composer install --no-interaction --prefer-dist --ignore-platform-reqs
-
-            echo "Running Laravel setup commands..."
-            php artisan migrate
-            php artisan config:cache
-            php artisan route:cache
-            php artisan view:cache
-            chmod -R 777 storage bootstrap/cache
-
-            echo "Deployment completed successfully!"
+          echo " Deployment completed successfully!"
