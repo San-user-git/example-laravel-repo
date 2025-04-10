@@ -20,7 +20,7 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           port: ${{ secrets.EC2_PORT }}
           script: |
-            cd /home/ubuntu/laravelrepo
+            cd /home/ubuntu/example-laravel-repo
             git pull origin main
             composer install
             cp .env.example .env
