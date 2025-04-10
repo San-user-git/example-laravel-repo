@@ -13,68 +13,50 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    # Step 1: Checkout code
-    - name: Checkout code
-      uses: actions/checkout@v3
+      # Step 1: Checkout the code from the repository
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    # Step 2: Set up PHP
-    - name: Set up PHP
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: 8.3
-        extensions: mbstring, intl, bcmath, curl, pdo, mysql
-        tools: composer:v2
-        coverage: none
+      # Step 2: Set up PHP 8.3 with required extensions
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.3
+          extensions: mbstring, intl, bcmath, curl, pdo, pdo_mysql
+          coverage: none
 
-    # Step 3: Cache Composer dependencies
-    - name: Cache Composer dependencies
-      uses: actions/cache@v3
-      with:
-        path: ~/.composer/cache
-        key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
-        restore-keys: ${{ runner.os }}-composer-
+      # Step 3: Cache Composer dependencies
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.composer/cache
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
 
-    # Step 4: Update composer.lock for compatibility (optional)
-    - name: Update composer.lock for PHP 8.3
-      run: |
-        composer update --no-dev --prefer-dist --optimize-autoloader
+      # Step 4: Install Composer dependencies (updated version)
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-interaction --optimize-autoloader
 
-    # Step 5: Install dependencies
-    - name: Install Composer dependencies
-      run: composer install --no-dev --prefer-dist --optimize-autoloader
+      # Step 5: Set up .env file and Laravel app key
+      - name: Set up environment file
+        run: |
+          cp .env.example .env
+          php artisan key:generate
 
-    # Step 6: Set up environment and Laravel app
-    - name: Set up Laravel Application
-      run: |
-        cp .env.example .env
-        php artisan key:generate
-        php artisan config:cache
-        php artisan route:cache
-        php artisan view:cache
-
-    # Step 7: Run database migrations
-    - name: Run Migrations
-      run: php artisan migrate --force
-
-    # Step 8: (Optional) Run PHPUnit Tests
-    - name: Run PHPUnit Tests
-      run: vendor/bin/phpunit --no-coverage || true
-
-    # Step 9: Deploy to remote server via SSH
-    - name: Deploy to Server
-      uses: appleboy/ssh-action@v0.1.10
-      with:
-        host: ${{ secrets.SSH_HOST }}
-        username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_KEY }}
-        port: 22
-        script: |
-          cd /home/ubuntu/example-laravel-repo
-          git pull origin main
-          composer install --no-dev --prefer-dist --optimize-autoloader
-          php artisan migrate --force
+      # Step 6: Run Laravel Artisan commands
+      - name: Run Laravel Artisan commands
+        run: |
           php artisan config:cache
           php artisan route:cache
           php artisan view:cache
-          chmod -R 777 storage bootstrap/cache
-          echo "Deployment completed!"
+          php artisan migrate --force
+
+      # Step 7: Run PHPUnit tests (optional if tests exist)
+      - name: Run PHPUnit Tests
+        run: ./vendor/bin/phpunit --no-coverage || echo "PHPUnit tests skipped or failed."
+
+      # Step 8: Deployment step (replace with your actual deployment logic)
+      - name: Deploy the application
+        run: |
+          echo "Deployment logic goes here"
+          .
