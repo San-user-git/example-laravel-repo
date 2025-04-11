@@ -28,7 +28,7 @@ jobs:
             # Enter maintenance mode or continue if already in it
             (php artisan down) || true
             # Pull the latest version
-            git pull origin production
+            git pull origin main
             # Install composer dependencies
             composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
             # Clear and cache the config
