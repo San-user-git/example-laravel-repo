@@ -1,65 +1,52 @@
-kname: Laravel CI/CD
+name: Deploy
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - production
   pull_request:
-    branches: [ main ]
+    branches:
+      - production
 
 jobs:
-  laravel-deploy:
+  deploy:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - uses: actions/checkout@v2
 
-    - name: Set up PHP
-      uses: shivammathur/setup-php@v2
-      with:
-        php-version: 8.3
-        extensions: mbstring, bcmath, pdo, pdo_mysql
-        tools: composer:v2
+      - name: Deploy to server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          port: ${{ secrets.PORT }}
+          key: ${{ secrets.SSHKEY }}
+          script: |
+            set -e
+            echo "Deployment started ..."
 
-    - name: Copy .env file
-      run: cp .env.example .env
+            cd /home/ubuntu/example-laravel-repo
 
-    - name: Set environment variables in .env
-      run: |
-        echo "DB_CONNECTION=mysql" >> .env
-        echo "DB_HOST=${{ secrets.DB_HOST }}" >> .env
-        echo "DB_PORT=${{ secrets.DB_PORT }}" >> .env
-        echo "DB_DATABASE=${{ secrets.DB_DATABASE }}" >> .env
-        echo "DB_USERNAME=${{ secrets.DB_USERNAME }}" >> .env
-        echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+            # Enter maintenance mode or continue if already in it
+            (php artisan down) || true
 
-    - name: Generate Laravel APP_KEY
-      run: php artisan key:generate
+            # Pull the latest version
+            git pull origin production
 
-    - name: Add SSH Key from Secret
-      run: |
-        mkdir -p ~/.ssh
-        echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
-        chmod 600 ~/.ssh/id_rsa
-        ssh-keyscan -p 22 -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+            # Install composer dependencies
+            composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
-    - name: Deploy to Remote Server
-      run: |
-        ssh -i ~/.ssh/id_rsa -p 22 ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
-          cd /home/ubuntu/example-laravel-repo
-          echo " Pulling latest code from main branch..."
-          git pull origin main
+            # Clear and cache the config
+            php artisan clear-compiled
+            php artisan optimize
 
-          if [ ! -d "vendor" ]; then
-            echo " Vendor directory not found. Installing dependencies..."
-            composer install --no-interaction --prefer-dist --optimize-autoloader
-          else
-            echo " Vendor directory exists. Skipping composer install."
-          fi
+            npm install
+            npm run prod
 
-          echo " Running Laravel migrations and optimizations..."
-          php artisan migrate --force
-          php artisan config:cache
-          php artisan route:cache
-        EOF
+            # Run migrations
+            php artisan migrate --force
 
+            # Exit maintenance mode
+            php artisan up
+
+            echo "Deployment finished!"
