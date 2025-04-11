@@ -1,4 +1,4 @@
-name: Laravel CI
+name: Laravel CI/CD
 
 on:
   push:
@@ -7,57 +7,77 @@ on:
     branches: [ main ]
 
 jobs:
-  laravel-tests:
+  laravel-deploy:
     runs-on: ubuntu-latest
-
-    services:
-      mysql:
-        image: mysql:8
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: laravel
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping --silent"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=3
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup PHP
+    - name: Set up PHP
       uses: shivammathur/setup-php@v2
       with:
         php-version: 8.3
-        extensions: mbstring, bcmath, mysql
-        coverage: none
+        extensions: mbstring, bcmath, pdo, pdo_mysql
+        tools: composer:v2
 
-    - name: Install Composer dependencies
-      run: composer install --prefer-dist --no-interaction --optimize-autoloader
+    - name: Cache Composer dependencies
+      uses: actions/cache@v3
+      with:
+        path: vendor
+        key: composer-${{ hashFiles('**/composer.lock') }}
+        restore-keys: composer-
 
-    - name: Copy .env
+    - name: Fix Composer compatibility (Update dependencies)
+      run: composer update --no-interaction --prefer-dist
+
+    - name: Copy .env file
       run: cp .env.example .env
 
-    - name: Generate app key
+    - name: Set environment variables in .env
+      run: |
+        echo "DB_CONNECTION=mysql" >> .env
+        echo "DB_HOST=${{ secrets.DB_HOST }}" >> .env
+        echo "DB_PORT=${{ secrets.DB_PORT }}" >> .env
+        echo "DB_DATABASE=${{ secrets.DB_DATABASE }}" >> .env
+        echo "DB_USERNAME=${{ secrets.DB_USERNAME }}" >> .env
+        echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+
+    - name: Generate Laravel APP_KEY
       run: php artisan key:generate
 
-    - name: Run migrations
+    - name: Run Laravel migrations
       env:
-        DB_HOST: 127.0.0.1
-        DB_PORT: 3306
-        DB_DATABASE: laravel
-        DB_USERNAME: root
-        DB_PASSWORD: root
+        DB_HOST: ${{ secrets.DB_HOST }}
+        DB_PORT: ${{ secrets.DB_PORT }}
+        DB_DATABASE: ${{ secrets.DB_DATABASE }}
+        DB_USERNAME: ${{ secrets.DB_USERNAME }}
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
       run: php artisan migrate --force
 
-    - name: Run tests
+    - name: Run Laravel tests
       env:
-        DB_HOST: 127.0.0.1
-        DB_PORT: 3306
-        DB_DATABASE: laravel
-        DB_USERNAME: root
-        DB_PASSWORD: root
+        DB_HOST: ${{ secrets.DB_HOST }}
+        DB_PORT: ${{ secrets.DB_PORT }}
+        DB_DATABASE: ${{ secrets.DB_DATABASE }}
+        DB_USERNAME: ${{ secrets.DB_USERNAME }}
+        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
       run: php artisan test
+
+    - name:  Add SSH Key from Secret
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -p 22 -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+    - name:  Deploy to Remote Server
+      run: |
+        ssh -i ~/.ssh/id_rsa -p 22 ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+          cd /home/ubuntu/example-laravel-repo
+          git pull origin main
+          composer install --no-interaction --prefer-dist --optimize-autoloader
+          php artisan migrate --force
+          php artisan config:cache
+          php artisan route:cache
+        EOF
