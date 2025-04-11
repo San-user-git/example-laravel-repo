@@ -1,4 +1,4 @@
-name: Laravel CI/CD
+kname: Laravel CI/CD
 
 on:
   push:
@@ -21,16 +21,6 @@ jobs:
         extensions: mbstring, bcmath, pdo, pdo_mysql
         tools: composer:v2
 
-    - name: Cache Composer dependencies
-      uses: actions/cache@v3
-      with:
-        path: vendor
-        key: composer-${{ hashFiles('**/composer.lock') }}
-        restore-keys: composer-
-
-    - name: Fix Composer compatibility (Update dependencies)
-      run: composer update --no-interaction --prefer-dist
-
     - name: Copy .env file
       run: cp .env.example .env
 
@@ -46,38 +36,30 @@ jobs:
     - name: Generate Laravel APP_KEY
       run: php artisan key:generate
 
-    - name: Run Laravel migrations
-      env:
-        DB_HOST: ${{ secrets.DB_HOST }}
-        DB_PORT: ${{ secrets.DB_PORT }}
-        DB_DATABASE: ${{ secrets.DB_DATABASE }}
-        DB_USERNAME: ${{ secrets.DB_USERNAME }}
-        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-      run: php artisan migrate --force
-
-    - name: Run Laravel tests
-      env:
-        DB_HOST: ${{ secrets.DB_HOST }}
-        DB_PORT: ${{ secrets.DB_PORT }}
-        DB_DATABASE: ${{ secrets.DB_DATABASE }}
-        DB_USERNAME: ${{ secrets.DB_USERNAME }}
-        DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-      run: php artisan test
-
-    - name:  Add SSH Key from Secret
+    - name: Add SSH Key from Secret
       run: |
         mkdir -p ~/.ssh
         echo "${{ secrets.SSH_KEY }}" > ~/.ssh/id_rsa
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -p 22 -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
 
-    - name:  Deploy to Remote Server
+    - name: Deploy to Remote Server
       run: |
         ssh -i ~/.ssh/id_rsa -p 22 ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
           cd /home/ubuntu/example-laravel-repo
+          echo " Pulling latest code from main branch..."
           git pull origin main
-          composer install --no-interaction --prefer-dist --optimize-autoloader
+
+          if [ ! -d "vendor" ]; then
+            echo " Vendor directory not found. Installing dependencies..."
+            composer install --no-interaction --prefer-dist --optimize-autoloader
+          else
+            echo " Vendor directory exists. Skipping composer install."
+          fi
+
+          echo " Running Laravel migrations and optimizations..."
           php artisan migrate --force
           php artisan config:cache
           php artisan route:cache
         EOF
+
