@@ -40,6 +40,10 @@ jobs:
             php artisan clear-compiled
             php artisan optimize
 
+<<<<<<< HEAD
+=======
+           
+>>>>>>> refs/remotes/origin/main
             npm install
             npm run prod
 
