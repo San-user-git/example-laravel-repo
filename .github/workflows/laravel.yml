@@ -21,26 +21,45 @@ jobs:
           username: ${{ secrets.USERNAME }}
           port: ${{ secrets.PORT }}
           key: ${{ secrets.SSHKEY }}
+          timeout: 60m
           script: |
             set -e
-            echo "Deployment started ..."
+
+            echo " Starting Deployment..."
             cd /home/ubuntu/example-laravel-repo
-            # Enter maintenance mode or continue if already in it
+
+            echo " Enabling maintenance mode..."
             (php artisan down) || true
-            # Pull the latest version
+
+            echo " Pulling latest code from main..."
             git pull origin main
-            # Install composer dependencies
-            composer install --prefer-dist --no-interaction --no-scripts --no-plugins --no-progress
-            # Clear and cache the config
-            php artisan clear-compiled
+
+            echo " Installing PHP dependencies "
+            composer install --prefer-dist --no-interaction --no-progress
+
+            echo " Clearing old caches..."
+            php artisan config:clear
+            php artisan cache:clear
+            php artisan route:clear
+            php artisan view:clear
+
+            echo " Optimizing Laravel..."
+            php artisan config:cache
+            php artisan route:cache
+            php artisan view:cache
             php artisan optimize
+
+           
+
             npm install
+            echo " Building frontend..."
             npm run build
-            # Run migrations
-            php artisan migrate
-            # Exit maintenance mode
+
+            echo " Running database migrations..."
+            php artisan migrate 
+
+            echo " Disabling maintenance mode..."
             php artisan up
-            
-            echo "Deployment finished!"
+
+            echo " Deployment finished successfully!"
             exit 0
-          timeout: 60m
