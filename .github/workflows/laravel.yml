@@ -56,7 +56,7 @@ jobs:
             npm run build
 
             echo " Running database migrations..."
-            php artisan migrate 
+            php artisan migrate --force
 
             echo " Disabling maintenance mode..."
             php artisan up
