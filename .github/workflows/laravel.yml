@@ -43,6 +43,8 @@ jobs:
             php artisan route:clear
             php artisan view:clear
 
+            echo "Running frontend build..."
+            npm install --legacy-peer-deps
         
             npm install
             echo " Building frontend..."
