@@ -30,7 +30,7 @@ jobs:
             # Pull the latest version
             git pull origin main
             # Install composer dependencies
-            composer install --no-interaction --prefer-dist --optimize-autoloader
+            composer install --prefer-dist --no-interaction --no-scripts --no-plugins --no-progress
             # Clear and cache the config
             php artisan clear-compiled
             php artisan optimize
