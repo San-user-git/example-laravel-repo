@@ -25,36 +25,40 @@ jobs:
           script: |
             set -e
 
-            echo " Starting Deployment..."
+            echo "Starting Deployment..."
             cd /home/ubuntu/example-laravel-repo
 
-            echo " Enabling maintenance mode..."
+            echo "Enabling maintenance mode..."
             (php artisan down) || true
 
-            echo " Pulling latest code from main..."
+            echo "Pulling latest code from main..."
             git pull origin main
 
-            echo " Installing PHP dependencies "
+            echo "Installing PHP dependencies..."
             composer install --prefer-dist --no-interaction --no-progress
 
-            echo " Clearing old caches..."
-            php artisan config:clear
-            php artisan cache:clear
-            php artisan route:clear
-            php artisan view:clear
+            echo "Clearing old caches..."
+            php artisan config:clear || true
+            php artisan cache:clear || true
+            php artisan route:clear || true
+            php artisan view:clear || true
 
-            echo "Running frontend build..."
+            # Clean existing node_modules
+            echo "Removing old node_modules..."
+            rm -rf node_modules
+
+            # Install new NPM dependencies
+            echo "Installing fresh NPM dependencies..."
             npm install --legacy-peer-deps
-        
-            npm install
-            echo " Building frontend..."
+
+            echo "Building frontend..."
             npm run build
 
-            echo " Running database migrations..."
+            echo "Running database migrations..."
             php artisan migrate --force
 
-            echo " Disabling maintenance mode..."
+            echo "Disabling maintenance mode..."
             php artisan up
 
-            echo " Deployment finished successfully!"
+            echo "Deployment finished successfully!"
             exit 0
