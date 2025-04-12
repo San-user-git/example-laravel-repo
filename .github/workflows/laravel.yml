@@ -44,8 +44,6 @@ jobs:
             php artisan view:clear
 
             echo " Optimizing Laravel..."
-            php artisan config:cache
-            php artisan view:cache
             php artisan optimize
 
            
